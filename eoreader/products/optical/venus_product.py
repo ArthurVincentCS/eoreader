@@ -2,10 +2,11 @@ import datetime
 import logging
 from enum import unique
 
+import geopandas as gpd
 import numpy as np
 import xarray as xr
 from lxml import etree
-from sertit import path
+from sertit import geometry, path, rasters
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 
@@ -22,10 +23,12 @@ from eoreader.bands import (
     BandNames,
     SpectralBand,
 )
-from eoreader.bands.band_names import CA, DEEP_BLUE, WV, YELLOW
+from eoreader.bands.band_names import CA, DEEP_BLUE, WV, YELLOW, VenusMaskBandNames
 from eoreader.exceptions import InvalidProductError
 from eoreader.products import OpticalProduct
+from eoreader.products.optical.optical_product import RawUnits
 from eoreader.stac import CENTER_WV, FWHM, GSD, ID, NAME
+from eoreader.utils import simplify
 
 LOGGER = logging.getLogger(EOREADER_NAME)
 
@@ -49,6 +52,27 @@ class VenusProduct(OpticalProduct):
     ) -> None:
         # Initialization from the super class
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
+
+    def _pre_init(self, **kwargs) -> None:
+        """
+        TODO : same as s2_theia_product
+        """
+        self._has_cloud_cover = True
+        self.needs_extraction = False
+        self._use_filename = True
+        self._raw_units = RawUnits.REFL
+
+        # Pre init done by the super class
+        super()._pre_init(**kwargs)
+
+    def _post_init(self, **kwargs) -> None:
+        """
+        TODO : same as s2_theia_product
+        """
+        self.tile_name = self._get_tile_name()
+
+        # Post init done by the super class
+        super()._post_init(**kwargs)
 
     def _get_name_constellation_specific(self) -> str:
         # Get MTD XML file
@@ -125,6 +149,19 @@ class VenusProduct(OpticalProduct):
         if not as_datetime:
             date = date.strftime(DATETIME_FMT)
         return date
+
+    def _get_tile_name(self) -> str:
+        """
+        TODO : same as s2_theia_product
+        """
+        # Get MTD XML file
+        root, _ = self.read_mtd()
+
+        # Open identifier
+        tile = root.findtext(".//GEOGRAPHICAL_ZONE")
+        if not tile:
+            raise InvalidProductError("GEOGRAPHICAL_ZONE not found in metadata!")
+        return tile
 
     def _set_instrument(self) -> None:
         """
@@ -308,3 +345,58 @@ class VenusProduct(OpticalProduct):
             band_arr = band_arr.astype(np.float32)
 
         return band_arr
+
+    def get_quicklook_path(self) -> str:
+        """
+        TODO : same as s2_theia_product
+        """
+        quicklook_path = None
+        try:
+            if self.is_archived:
+                quicklook_path = self.path / self._get_archived_path(
+                    regex=r".*QKL_ALL\.jpg"
+                )
+            else:
+                quicklook_path = next(self.path.glob("**/*QKL_ALL.jpg"))
+            quicklook_path = str(quicklook_path)
+        except (StopIteration, FileNotFoundError):
+            LOGGER.warning(f"No quicklook found in {self.condensed_name}")
+
+        return quicklook_path
+
+    def _get_mask_path(self, mask_id: str) -> AnyPathType:
+        """
+        TODO : almost the same as s2_theia_product
+        """
+        mask_regex = f"*{mask_id}_XS.tif"  # XS
+        try:
+            if self.is_archived:
+                mask_path = self._get_archived_rio_path(mask_regex.replace("*", ".*"))
+            else:
+                mask_path = path.get_file_in_dir(
+                    self.path.joinpath("MASKS"), mask_regex, exact_name=True
+                )
+        except (FileNotFoundError, IndexError) as ex:
+            raise InvalidProductError(
+                f"Non existing mask {mask_regex} in {self.name}"
+            ) from ex
+
+        return mask_path
+
+    @cache
+    @simplify
+    def footprint(self) -> gpd.GeoDataFrame:
+        """
+        TODO : almost the same as s2_theia_product
+        """
+        edg_path = self._get_mask_path(
+            VenusMaskBandNames.EDG.name
+        )  # there is no additional parameters
+        mask = utils.read(edg_path, masked=False)
+
+        # Vectorize the nodata band
+        footprint = rasters.vectorize(mask, values=0, default_nodata=1)
+        footprint = geometry.get_wider_exterior(footprint)
+        footprint.geometry = footprint.geometry.convex_hull
+
+        return footprint
