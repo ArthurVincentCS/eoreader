@@ -430,7 +430,6 @@ class VenusProduct(OpticalProduct):
                     )
                 else:
                     sanitized_associated_bands[band] = [None]
-
         return sanitized_associated_bands
 
     def _get_mask_path(self, mask_id: str) -> AnyPathType:
@@ -486,7 +485,6 @@ class VenusProduct(OpticalProduct):
             associated_bands = self._sanitized_associated_bands(
                 bands, kwargs.get(ASSOCIATED_BANDS)
             )
-
             # Update kwargs with sanitized associated bands
             if associated_bands:
                 kwargs[ASSOCIATED_BANDS] = associated_bands_to_load
@@ -574,19 +572,7 @@ class VenusProduct(OpticalProduct):
         **kwargs,
     ) -> xr.DataArray:
         """
-        Open one mask files as xarrays.
-        Use the GREEN band if associated_band is not given, so R1 file by default (10m resolution), downsampled if needed.
-
-        See https://labo.obs-mip.fr/multitemp/sentinel-2/theias-sentinel-2-l2a-product-format/
-
-        Args:
-            bands (BandNames): Wanted mask band
-            associated_band (BandNames): Associated spectral band to the wanted mask,v to determine the bit ID of some masks. Using the GREEN band if not given.
-            pixel_size (int): Band pixel size in meters
-            size (Union[tuple, list]): Size of the array (width, height). Not used if pixel_size is provided.
-            kwargs: Additional arguments
-        Returns:
-            xr.DataArray: Mask
+        TODO : almost the same as s2_theia_product
         """
         # Just to choose between R1 and R2 here -> take R1
         if associated_band is None:
