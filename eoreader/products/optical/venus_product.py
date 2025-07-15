@@ -126,6 +126,8 @@ class VenusProduct(OpticalProduct):
     def _map_bands(self) -> None:
         """
         Map bands
+
+        some string
         """
         venus_bands = {
             DEEP_BLUE: SpectralBand(
