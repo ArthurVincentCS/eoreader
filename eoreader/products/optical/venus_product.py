@@ -127,7 +127,7 @@ class VenusProduct(OpticalProduct):
         """
         Map bands
 
-        some string
+        some string !
         """
         venus_bands = {
             DEEP_BLUE: SpectralBand(
